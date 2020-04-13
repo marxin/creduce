@@ -125,7 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("--log-level", type=str, choices=["INFO", "DEBUG", "WARNING", "ERROR"], default="INFO", help="Define the verbosity of the logged events")
     parser.add_argument("--log-file", type=str, help="Log events into LOG_FILE instead of stderr. New events are appended to the end of the file")
     parser.add_argument("--no-kill", action="store_true", default=False, help="Wait for testing instances to terminate on their own instead of killing them (only useful for debugging)")
-    parser.add_argument("--no-give-up", action="store_true", default=False, help="Don't give up on a pass that hasn't made progress for {} iterations".format(testing.AbstractTestManager.GIVEUP_CONSTANT))
+    parser.add_argument("--no-give-up", action="store_true", default=False, help="Don't give up on a pass that hasn't made progress for {} iterations".format(testing.TestManager.GIVEUP_CONSTANT))
     parser.add_argument("--print-diff", action="store_true", default=False, help="Show changes made by transformations, for debugging")
     parser.add_argument("--save-temps", action="store_true", default=False, help="Don't delete /tmp/creduce-xxxxxx directories on termination")
     parser.add_argument("--skip-initial-passes", action="store_true", default=False, help="Skip initial passes (useful if input is already partially reduced)")
@@ -188,10 +188,10 @@ if __name__ == "__main__":
     pass_group_dict = CReduce.load_pass_group_file(pass_group_file)
     pass_group = CReduce.parse_pass_group_dict(pass_group_dict, pass_options, external_programs, args.remove_pass)
 
-    test_runner = testing.GeneralTestRunner(args.interestingness_test, args.timeout, args.save_temps, args.no_kill)
+    test_runner = testing.TestRunner(args.interestingness_test, args.timeout, args.save_temps, args.no_kill)
     pass_statistic = statistics.PassStatistic()
 
-    test_manager = testing.ConservativeTestManager(test_runner, pass_statistic, args.test_cases, args.n, args.no_cache, args.skip_key_off, args.shaddap, args.die_on_pass_bug, args.print_diff, args.max_improvement, args.no_give_up, args.also_interesting)
+    test_manager = testing.TestManager(test_runner, pass_statistic, args.test_cases, args.n, args.no_cache, args.skip_key_off, args.shaddap, args.die_on_pass_bug, args.print_diff, args.max_improvement, args.no_give_up, args.also_interesting)
 
     reducer = CReduce(test_manager)
 

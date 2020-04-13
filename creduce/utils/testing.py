@@ -48,8 +48,8 @@ def _run_test(module_spec, test_dir, test_cases):
     module_spec.loader.exec_module(module)
     module.run(test_cases)
 
-class AbstractTestEnvironment:
-    def __init__(self, timeout, save_temps):
+class TestEnvironment:
+    def __init__(self, test_script, timeout, save_temps):
         self.test_case = None
         self.additional_files = set()
         self.state = None
@@ -57,6 +57,10 @@ class AbstractTestEnvironment:
         self.timeout = timeout
         self.save_temps = save_temps
         self._base_size = None
+        self.test_script = test_script
+        self.__exitcode = None
+        self.__process = None
+        self.__timer = None
 
         if not save_temps:
             self._finalizer = weakref.finalize(self, self._cleanup, self.path)
@@ -89,13 +93,6 @@ class AbstractTestEnvironment:
             self.additional_files.add(os.path.basename(f))
             shutil.copy(f, self.path)
 
-    def dump(self, dst):
-        if self.test_case is not None:
-            shutil.copy(self.test_case_path, dst)
-
-        for f in self.additional_files:
-            shutil.copy(f, dst)
-
     @property
     def size_improvement(self):
         if self._base_size is None:
@@ -115,33 +112,16 @@ class AbstractTestEnvironment:
     def additional_files_paths(self):
         return [os.path.join(self.path, f) for f in self.additional_files]
 
-    def start_test(self):
-        raise NotImplementedError("Missing 'start_test' implementation in class '{}'".format(self.__class__))
-
-    def has_result(self):
-        raise NotImplementedError("Missing 'has_result' implementation in class '{}'".format(self.__class__))
-
-    def check_result(self, result):
-        raise NotImplementedError("Missing 'check_result' implementation in class '{}'".format(self.__class__))
-
-    def wait_for_result(self):
-        raise NotImplementedError("Missing 'wait_for_result' implementation in class '{}'".format(self.__class__))
-
-class GeneralTestEnvironment(AbstractTestEnvironment):
-    def __init__(self, test_script, timeout, save_temps):
-        super().__init__(timeout, save_temps)
-
-        self.test_script = test_script
-        self.__exitcode = None
-        self.__process = None
-        self.__timer = None
-
     def __del__(self):
         if self.__timer is not None:
             self.__timer.cancel()
 
     def dump(self, dst):
-        super().dump(dst)
+        if self.test_case is not None:
+            shutil.copy(self.test_case_path, dst)
+
+        for f in self.additional_files:
+            shutil.copy(f, dst)
 
         shutil.copy(self.test_script, dst)
 
@@ -194,7 +174,7 @@ class GeneralTestEnvironment(AbstractTestEnvironment):
                 # Only kill process if it is still running
                 if process.poll() is None:
                     logging.debug("Test {} timed out!".format(process.pid))
-                    AbstractTestRunner.killpg(process.pid)
+                    TestRunner.killpg(process.pid)
 
             #TODO: Eventually the call to timeout should be canceled if the test gets killed otherwise or finishes
             # But currently there does not seem to be a way of doing it
@@ -221,9 +201,10 @@ class GeneralTestEnvironment(AbstractTestEnvironment):
         if self.__process is not None:
             return self.__process.wait()
 
-class AbstractTestRunner:
-    def __init__(self, test, timeout, save_temps, no_kill):
-        if not self.is_valid_test(test):
+class TestRunner:
+    def __init__(self, test_script, timeout, save_temps, no_kill):
+        self.test_script = os.path.abspath(test_script)
+        if not self.is_valid_test(test_script):
             raise InvalidInterestingnessTestError(test)
 
         self.timeout = timeout
@@ -231,11 +212,15 @@ class AbstractTestRunner:
         self.no_kill = no_kill
 
     @classmethod
-    def is_valid_test(cls, test):
-        raise NotImplementedError("Missing 'is_valid_test' implementation in class '{}'".format(cls))
+    def is_valid_test(cls, test_script):
+        for mode in {os.F_OK, os.X_OK}:
+            if not os.access(test_script, mode):
+                return False
+
+        return True
 
     def create_environment(self):
-        raise NotImplementedError("Missing 'create_environment' implementation in class '{}'".format(self.__class__))
+        return TestEnvironment(self.test_script, self.timeout, self.save_temps)
 
     @classmethod
     def _wait_posix(cls, environments):
@@ -303,29 +288,10 @@ class AbstractTestRunner:
         else:
             cls._kill_posix(pid)
 
-
-class GeneralTestRunner(AbstractTestRunner):
-    def __init__(self, test_script, timeout, save_temps, no_kill):
-        super().__init__(test_script, timeout, save_temps, no_kill)
-
-        self.test_script = os.path.abspath(test_script)
-
-    @classmethod
-    def is_valid_test(cls, test_script):
-        for mode in {os.F_OK, os.X_OK}:
-            if not os.access(test_script, mode):
-                return False
-
-        return True
-
-    def create_environment(self):
-        return GeneralTestEnvironment(self.test_script, self.timeout, self.save_temps)
-
-class AbstractTestManager:
+class TestManager:
     GIVEUP_CONSTANT = 50000
     MAX_CRASH_DIRS = 10
     MAX_EXTRA_DIRS = 25000
-    GIVEUP_CONSTANT = 50000
 
     def __init__(self, test_runner, pass_statistic, test_cases, parallel_tests, no_cache, skip_key_off, silent_pass_bug, die_on_pass_bug, print_diff, max_improvement, no_give_up, also_interesting):
         self.test_runner = test_runner
@@ -668,6 +634,3 @@ class AbstractTestManager:
                                                                    (env.check_result(0) and
                                                                     (self.max_improvement is None or
                                                                      env.size_improvement <= self.max_improvement))]
-
-class ConservativeTestManager(AbstractTestManager):
-    pass
