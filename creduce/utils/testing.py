@@ -26,6 +26,9 @@ import tempfile
 import threading
 import weakref
 
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+
 from .. import CReduce
 from creduce.passes.abstract import AbstractPass
 
@@ -49,7 +52,7 @@ def _run_test(module_spec, test_dir, test_cases):
     module.run(test_cases)
 
 class TestEnvironment:
-    def __init__(self, test_script, timeout, save_temps):
+    def __init__(self, test_script, timeout, save_temps, order):
         self.test_case = None
         self.additional_files = set()
         self.state = None
@@ -61,6 +64,7 @@ class TestEnvironment:
         self.__exitcode = None
         self.__process = None
         self.__timer = None
+        self.order = order
 
         if not save_temps:
             self._finalizer = weakref.finalize(self, self._cleanup, self.path)
@@ -75,6 +79,8 @@ class TestEnvironment:
     @classmethod
     def _cleanup(cls, name):
         try:
+            # TODO: remove
+            assert 'creduce-' in name and 'tmp' in name
             shutil.rmtree(name)
         except FileNotFoundError:
             pass
@@ -150,38 +156,13 @@ class TestEnvironment:
     def _exitcode(self, exitcode):
         self.__exitcode = exitcode
 
-    def start_test(self):
+    def run_test(self):
         cmd = [self.test_script]
-
         if self.test_case is not None:
             cmd.append(self.test_case_path)
-
         cmd.extend(self.additional_files_paths)
 
-        if sys.platform != "win32":
-            # Create process group to kill the whole process tree
-            # Windows does not have this concept
-            def preexec_fn():
-                pid = os.getpid()
-                os.setpgid(pid, pid)
-        else:
-            preexec_fn = None
-
-        self.__process = subprocess.Popen(cmd, cwd=self.path, preexec_fn=preexec_fn, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-        if self.timeout is not None:
-            def timeout(process):
-                # Only kill process if it is still running
-                if process.poll() is None:
-                    logging.debug("Test {} timed out!".format(process.pid))
-                    TestRunner.killpg(process.pid)
-
-            #TODO: Eventually the call to timeout should be canceled if the test gets killed otherwise or finishes
-            # But currently there does not seem to be a way of doing it
-            # So we just make sure that the timeout call checks if the process is still alive
-            self.__timer = asyncio.get_event_loop().call_later(self.timeout, timeout, self.__process)
-
-        return " ".join(cmd)
+        return subprocess.run(cmd, cwd=self.path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def has_result(self):
         if self.__process is None:
@@ -218,8 +199,8 @@ class TestRunner:
 
         return True
 
-    def create_environment(self):
-        return TestEnvironment(self.test_script, self.timeout, self.save_temps)
+    def create_environment(self, order):
+        return TestEnvironment(self.test_script, self.timeout, self.save_temps, order)
 
     @classmethod
     def _wait_posix(cls, environments):
@@ -283,6 +264,7 @@ class TestManager:
     GIVEUP_CONSTANT = 50000
     MAX_CRASH_DIRS = 10
     MAX_EXTRA_DIRS = 25000
+    MAX_FUTURES = 16
 
     def __init__(self, test_runner, pass_statistic, test_cases, parallel_tests, no_cache, skip_key_off, silent_pass_bug, die_on_pass_bug, print_diff, max_improvement, no_give_up, also_interesting):
         self.test_runner = test_runner
@@ -391,19 +373,17 @@ class TestManager:
     def check_sanity(self):
         logging.debug("perform sanity check... ")
 
-        test_env = self.test_runner.create_environment()
+        test_env = self.test_runner.create_environment(0)
 
         logging.debug("sanity check tmpdir = {}".format(test_env.path))
 
         test_env.copy_files(None, self.test_cases)
 
-        cmd = test_env.start_test()
-        test_env.wait_for_result()
-
-        if test_env.check_result(0):
+        p = test_env.run_test()
+        if not p.returncode:
             logging.debug("sanity check successful")
         else:
-            raise InsaneTestCaseError(self.test_cases, cmd)
+            raise InsaneTestCaseError(self.test_cases, p.args)
 
     def _get_active_tests(self):
         return [env for env in self._environments if not env.has_result()]
@@ -435,21 +415,58 @@ class TestManager:
 
         return True
 
-    def create_test_env(self):
-        test_env = self.test_runner.create_environment()
+    def create_and_run_test_env(self, state, order):
+        test_env = self.test_runner.create_environment(order)
         # Copy files from base env
         test_env.copy_files(self._base_test_env.test_case_path, self._base_test_env.additional_files_paths)
         # Copy state from base_env
-        test_env.state = self._base_test_env.state
+        test_env.state = state
 
+        # transform by state
         (result, test_env.state) = self._pass.transform(test_env.test_case_path, test_env.state)
+        if result != self._pass.Result.ok:
+            return (result, test_env)
 
-        #TODO: Can the state be altered if the transform fails?
-        # If not this would need to be checked here
-        # Transform can alter the state. This has to be reflected in the base test env
-        self._base_test_env.state = test_env.state
+        # run test script
+        p = test_env.run_test()
+        self.__exitcode = p.returncode
 
-        return (test_env, result)
+        return (self._pass.Result.ok if self.__exitcode == 0 else self._pass.Result.invalid, test_env)
+
+    @classmethod
+    def cancel_all(cls, executor, futures):
+        executor.shutdown(wait=False)
+        for future in futures:
+            if not future.done():
+                future.cancel()
+
+    def run_parallel_tests(self):
+        with ThreadPoolExecutor(max_workers=self.parallel_tests) as executor:
+            futures = set()
+            order = 1
+            while self._base_test_env.state != None:
+                # do not create too many states
+                if len(futures) >= self.MAX_FUTURES:
+                    wait(futures, return_when=FIRST_COMPLETED)
+
+                done = set([future for future in futures if future.done()])
+                for future in done:
+                    (result, test_env) = future.result()
+                    if result == self._pass.Result.ok or result == self._pass.Result.stop or result == self._pass.Result.error:
+                        self.cancel_all(executor, futures)
+                        return futures
+                futures -= done
+                futures.add(executor.submit(self.create_and_run_test_env, self._base_test_env.state, order))
+                order += 1
+                state = self._pass.advance(self._base_test_env.test_case_path, self._base_test_env.state)
+                # we are at the end of enumeration
+                if state == None:
+                    self.cancel_all(executor, futures)
+                    return futures
+                else:
+                    self._base_test_env.state = state
+
+            assert False
 
     def run_pass(self, pass_):
         self._pass = pass_
@@ -458,7 +475,7 @@ class TestManager:
         logging.info("===< {} >===".format(self._pass))
 
         if self.total_file_size == 0:
-            raise ZeroSizeError(self.test_cases)
+            raise zerosizeerror(self.test_cases)
 
         for test_case in self.test_cases:
             self._current_test_case = test_case
@@ -481,7 +498,7 @@ class TestManager:
                         continue
 
             # Create initial test environment
-            self._base_test_env = self.test_runner.create_environment()
+            self._base_test_env = self.test_runner.create_environment(0)
             self._base_test_env.copy_files(test_case, self.test_cases ^ {test_case})
             self._base_test_env.state = self._pass.new(self._base_test_env.test_case_path)
 
@@ -499,6 +516,23 @@ class TestManager:
                         self._skip = True
                         logging.info("****** skipping the rest of this pass ******")
 
+                # TODO: XXX
+                finished = [future for future in self.run_parallel_tests() if future.done() and not future.cancelled()]
+                if not finished:
+                    return
+
+                candidates = [f.result()[1] for f in finished if f.result()[0] == self._pass.Result.ok]
+                candidates = sorted(candidates, key = lambda c: c.order)
+#                candidates = sorted(candidates, key = lambda c: self._get_file_size([c.test_case_path]))
+                if candidates:
+# TODO
+#                    for c in candidates:
+#                        print(self._get_file_size([c.test_case_path]))
+                    self.process_result(candidates[0])
+                else:
+                    return
+
+            """
                 while self.can_create_test_env():
                     (test_env, result) = self.create_test_env()
 
@@ -556,6 +590,68 @@ class TestManager:
                         self._cache[pass_key] = {}
 
                     self._cache[pass_key][test_case_before_pass] = tmp_file.read()
+            """
+
+    def process_result(self, test_env):
+        logging.debug("Process result")
+
+        self._base_test_env = test_env
+        shutil.copy(test_env.test_case_path, self._current_test_case)
+        state = self._pass.advance_on_success(test_env.test_case_path, self._base_test_env.state)
+
+        if state is not None:
+            self._base_test_env.state = state
+        self._stopped = (state is None)
+        self._since_success = 0
+        self.pass_statistic.update(self._pass, success=True)
+
+        pct = 100 - (self.total_file_size * 100.0 / self._orig_total_file_size)
+        logging.info("({}%, {} bytes)".format(round(pct, 1), self.total_file_size))
+
+        """
+
+
+
+
+                if (self.max_improvement is not None and
+                    test_env.size_improvement > self.max_improvement):
+                    logging.debug("Too large improvement")
+                    continue
+
+                self.test_runner.kill(self._environments)
+                self._environments = []
+
+                self._base_test_env = test_env
+                shutil.copy(self._base_test_env.test_case_path, self._current_test_case)
+                state = self._pass.advance_on_success(test_env.test_case_path, self._base_test_env.state)
+
+                if state is not None:
+                    self._base_test_env.state = state
+                    #logging.debug("Base state advance success: {}".format(self._base_test_env.state))
+
+                self._stopped = (state is None)
+                self._since_success = 0
+                self.pass_statistic.update(self._pass, success=True)
+
+                pct = 100 - (self.total_file_size * 100.0 / self._orig_total_file_size)
+                logging.info("({}%, {} bytes)".format(round(pct, 1), self.total_file_size))
+            else:
+                logging.debug("delta test failure")
+
+                self._since_success += 1
+                self.pass_statistic.update(self._pass, success=False)
+
+                if (self.also_interesting is not None and
+                    test_env.check_result(self.also_interesting)):
+                    extra_dir = self._get_extra_dir("creduce_extra_", self.MAX_EXTRA_DIRS)
+
+                    if extra_dir is not None:
+                        shutil.move(test_env.path, extra_dir)
+                        logging.info("Created extra directory {} for you to look at later".format(extra_dir))
+
+            # Implicitly performs cleanup of temporary directories
+            test_env = None
+        """
 
     def wait_for_results(self):
         logging.debug("Wait for results")

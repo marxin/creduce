@@ -7,6 +7,9 @@ class BinaryState:
     def __init__(self):
         pass
 
+    def __repr__(self):
+        return 'BinaryState: %d-%d of %d instances' % (self.index, self.end(), self.instances)
+
     @staticmethod
     def create(instances):
         if not instances:
@@ -50,8 +53,10 @@ class AbstractPass:
     @enum.unique
     class Result(enum.Enum):
         ok = 0
-        stop = 1
-        error = 2
+        done = 1
+        invalid = 2
+        stop = 3
+        error = 4
 
     @enum.unique
     class Option(enum.Enum):
