@@ -221,83 +221,6 @@ class GeneralTestEnvironment(AbstractTestEnvironment):
         if self.__process is not None:
             return self.__process.wait()
 
-class PythonTestEnvironment(AbstractTestEnvironment):
-    def __init__(self, module_spec, timeout, save_temps):
-        super().__init__(timeout, save_temps)
-
-        self.module_spec = module_spec
-        self.__exitcode = None
-        self.__process = None
-        self.__timer = None
-
-    def __del__(self):
-        if self.__timer is not None:
-            self.__timer.cancel()
-
-    @property
-    def process_handle(self):
-        handle = None
-
-        if sys.platform == "win32":
-            if self.__process is not None:
-                handle = self.__process.sentinel
-
-        return handle
-
-    @property
-    def process_pid(self):
-        if self.__process is None:
-            return None
-        else:
-            return self.__process.pid
-
-    @property
-    def _exitcode(self):
-        assert False, "Use check_result instead"
-
-    @_exitcode.setter
-    def _exitcode(self, exitcode):
-        self.__exitcode = exitcode
-
-    def start_test(self):
-        files = []
-
-        if self.test_case is not None:
-            files.append(self.test_case_path)
-
-        files.extend(self.additional_files_paths)
-
-        self.__process = multiprocessing.Process(target=_run_test, args=(self.module_spec, self.path, files))
-        self.__process.start()
-
-        if self.timeout is not None:
-            def timeout(process):
-                # Only kill process if it is still running
-                if process.poll() is None:
-                    logging.debug("Test {} timed out!".format(process.pid))
-                    AbstractTestRunner.killpg(process.pid)
-
-            self.__timer = threading.Timer(self.timeout, timeout, [self.__process])
-            self.__timer.start()
-
-    def has_result(self):
-        if self.__process is None:
-            return False
-        elif self.__exitcode is None:
-            return (self.__process.exitcode is not None)
-        else:
-            return (self.__exitcode is not None)
-
-    def check_result(self, result):
-        if self.__exitcode is None:
-            self.__exitcode = self.__process.exitcode
-
-        return (self.__exitcode == result)
-
-    def wait_for_result(self):
-        if self.__process is not None:
-            return self.__process.join()
-
 class AbstractTestRunner:
     def __init__(self, test, timeout, save_temps, no_kill):
         if not self.is_valid_test(test):
@@ -397,38 +320,6 @@ class GeneralTestRunner(AbstractTestRunner):
 
     def create_environment(self):
         return GeneralTestEnvironment(self.test_script, self.timeout, self.save_temps)
-
-class PythonTestRunner(AbstractTestRunner):
-    def __init__(self, test_module, timeout, save_temps, no_kill):
-        super().__init__(test_module, timeout, save_temps, no_kill)
-
-        if os.path.isfile(test_module):
-            (module_name, _) = os.path.splitext(os.path.basename(test_module))
-            self.module_spec = importlib.util.spec_from_file_location(module_name, os.path.abspath(test_module))
-        else:
-            self.module_spec = importlib.util.find_spec(test_module)
-
-    @classmethod
-    def is_valid_test(cls, test_script):
-        try:
-            if os.path.isfile(test_script):
-                (module_name, _) = os.path.splitext(os.path.basename(test_script))
-                module_spec = importlib.util.spec_from_file_location(module_name, test_script)
-            else:
-                module_spec = importlib.util.find_spec(test_script)
-
-            if module_spec is None:
-                return False
-
-            module = compat.importlib_module_from_spec(module_spec)
-            module_spec.loader.exec_module(module)
-        except FileNotFoundError:
-            return False
-
-        return (getattr(module, "run", None) is not None)
-
-    def create_environment(self):
-        return PythonTestEnvironment(self.module_spec, self.timeout, self.save_temps)
 
 class AbstractTestManager:
     GIVEUP_CONSTANT = 50000

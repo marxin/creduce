@@ -139,7 +139,6 @@ if __name__ == "__main__":
     passes_group = parser.add_mutually_exclusive_group()
     passes_group.add_argument("--pass-group", type=str, choices=get_available_pass_groups(), help="Set of passes used during the reduction")
     passes_group.add_argument("--pass-group-file", type=str, help="JSON file defining a custom pass group")
-    parser.add_argument("--no-fast-test", action="store_true", help="Use the general test runner even if a faster implementation is available")
     parser.add_argument("interestingness_test", metavar="INTERESTINGNESS_TEST", help="Executable to check interestingness of test cases")
     parser.add_argument("test_cases", metavar="TEST_CASE", nargs="+", help="Test cases")
 
@@ -189,12 +188,7 @@ if __name__ == "__main__":
     pass_group_dict = CReduce.load_pass_group_file(pass_group_file)
     pass_group = CReduce.parse_pass_group_dict(pass_group_dict, pass_options, external_programs, args.remove_pass)
 
-    if (not args.no_fast_test and
-        testing.PythonTestRunner.is_valid_test(args.interestingness_test)):
-        test_runner = testing.PythonTestRunner(args.interestingness_test, args.timeout, args.save_temps, args.no_kill)
-    else:
-        test_runner = testing.GeneralTestRunner(args.interestingness_test, args.timeout, args.save_temps, args.no_kill)
-
+    test_runner = testing.GeneralTestRunner(args.interestingness_test, args.timeout, args.save_temps, args.no_kill)
     pass_statistic = statistics.PassStatistic()
 
     test_manager = testing.ConservativeTestManager(test_runner, pass_statistic, args.test_cases, args.n, args.no_cache, args.skip_key_off, args.shaddap, args.die_on_pass_bug, args.print_diff, args.max_improvement, args.no_give_up, args.also_interesting)
