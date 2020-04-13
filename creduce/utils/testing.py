@@ -202,14 +202,13 @@ class TestEnvironment:
             return self.__process.wait()
 
 class TestRunner:
-    def __init__(self, test_script, timeout, save_temps, no_kill):
+    def __init__(self, test_script, timeout, save_temps):
         self.test_script = os.path.abspath(test_script)
         if not self.is_valid_test(test_script):
             raise InvalidInterestingnessTestError(test)
 
         self.timeout = timeout
         self.save_temps = save_temps
-        self.no_kill = no_kill
 
     @classmethod
     def is_valid_test(cls, test_script):
@@ -271,14 +270,6 @@ class TestRunner:
 
     def kill(self, environments):
         for test_env in environments:
-            #logging.debug("Kill {}".format(test_env.process_pid))
-
-            if not test_env.has_result() and not self.no_kill:
-                if sys.platform == "win32":
-                    self._kill_win32(test_env.process_pid)
-                else:
-                    self._kill_posix(test_env.process_pid)
-
             test_env.wait_for_result()
 
     @classmethod
