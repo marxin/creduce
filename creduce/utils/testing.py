@@ -27,7 +27,8 @@ import threading
 import weakref
 
 import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+from concurrent.futures import wait, FIRST_COMPLETED
+from pebble import ProcessPool
 
 from .. import CReduce
 from creduce.passes.abstract import AbstractPass
@@ -54,8 +55,9 @@ class TestEnvironment:
         self.__process = None
         self.order = order
 
-        if not save_temps:
-            self._finalizer = weakref.finalize(self, self._cleanup, self.path)
+# TODO
+#        if not save_temps:
+#            self._finalizer = weakref.finalize(self, self._cleanup, self.path)
 
     def __enter__(self):
         return self
@@ -68,7 +70,6 @@ class TestEnvironment:
     def _cleanup(cls, name):
         try:
             # TODO: remove
-            assert 'creduce-' in name and 'tmp' in name
             shutil.rmtree(name)
         except FileNotFoundError:
             pass
@@ -285,16 +286,9 @@ class TestManager:
 
         return (self._pass.Result.ok if self.__exitcode == 0 else self._pass.Result.invalid, test_env)
 
-    @classmethod
-    def cancel_all(cls, executor, futures):
-        executor.shutdown(wait=False)
-        for future in futures:
-            if not future.done():
-                future.cancel()
-
     def run_parallel_tests(self):
-        with ThreadPoolExecutor(max_workers=self.parallel_tests) as executor:
-            futures = set()
+        with ProcessPool(max_workers=self.parallel_tests) as pool:
+            futures = []
             order = 1
             while self._base_test_env.state != None:
                 # do not create too many states
@@ -302,18 +296,36 @@ class TestManager:
                     wait(futures, return_when=FIRST_COMPLETED)
 
                 done = set([future for future in futures if future.done()])
+                candidate = None
                 for future in done:
                     (result, test_env) = future.result()
                     if result == self._pass.Result.ok or result == self._pass.Result.stop or result == self._pass.Result.error:
-                        self.cancel_all(executor, futures)
-                        return futures
-                futures -= done
-                futures.add(executor.submit(self.create_and_run_test_env, self._base_test_env.state, order))
+                        candidate = future
+                        break
+
+                # wait for all before the candidate
+                if candidate:
+                    joined_count = 0
+                    for f in futures[:futures.index(candidate)]:
+                        f.result()
+                        (result, _) = future.result()
+                        # TODO: add method for it
+                        if result == self._pass.Result.ok or result == self._pass.Result.stop or result == self._pass.Result.error:
+                            break
+
+                    # we joined all futures before the candidate, let's close the pool
+                    pool.close()
+                    pool.stop()
+                    return futures
+
+                futures = [f for f in futures if not f in done]
+                futures.append(pool.schedule(self.create_and_run_test_env, (self._base_test_env.state, order)))
                 order += 1
                 state = self._pass.advance(self._base_test_env.test_case_path, self._base_test_env.state)
                 # we are at the end of enumeration
                 if state == None:
-                    self.cancel_all(executor, futures)
+                    pool.close()
+                    pool.join()
                     return futures
                 else:
                     self._base_test_env.state = state
@@ -368,7 +380,8 @@ class TestManager:
                         logging.info("****** skipping the rest of this pass ******")
 
                 # TODO: XXX
-                finished = [future for future in self.run_parallel_tests() if future.done() and not future.cancelled()]
+                parallel_tests = self.run_parallel_tests()
+                finished = [future for future in parallel_tests if future.done() and not future.cancelled()]
                 if not finished:
                     return
 
