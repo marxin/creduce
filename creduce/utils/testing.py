@@ -306,7 +306,6 @@ class TestManager:
 
                 # wait for all before the candidate
                 if candidate:
-                    joined_count = 0
                     for f in futures[:futures.index(candidate)]:
                         f.result()
                         (result, _) = future.result()
@@ -317,7 +316,8 @@ class TestManager:
                     # we joined all futures before the candidate, let's close the pool
                     pool.close()
                     pool.stop()
-                    return futures
+                    pool.join()
+                    return [candidate]
 
                 futures = [f for f in futures if not f in done]
                 futures.append(pool.schedule(self.create_and_run_test_env, (self._base_test_env.state, order)))
