@@ -48,7 +48,7 @@ class TestEnvironment:
         self.folder = folder
         self.timeout = timeout
         self.save_temps = save_temps
-        self._base_size = None
+        self.base_size = None
         self.test_script = test_script
         self.exitcode = None
         self.result = None
@@ -60,7 +60,7 @@ class TestEnvironment:
         if test_case is not None:
             self.test_case = os.path.basename(test_case)
             shutil.copy(test_case, self.folder)
-            self._base_size = os.path.getsize(test_case)
+            self.base_size = os.path.getsize(test_case)
 
         for f in additional_files:
             self.additional_files.add(os.path.basename(f))
@@ -68,10 +68,10 @@ class TestEnvironment:
 
     @property
     def size_improvement(self):
-        if self._base_size is None:
+        if self.base_size is None:
             return None
         else:
-            return (self._base_size - os.path.getsize(self.test_case_path))
+            return (self.base_size - os.path.getsize(self.test_case_path))
 
     @property
     def test_case_path(self):
@@ -250,9 +250,7 @@ class TestManager:
 
     def create_and_run_test_env(self, state, order, folder):
         test_env = self.test_runner.create_environment(order, folder)
-        # Copy files from base env
         test_env.copy_files(self.current_test_case, self.test_cases ^ {self.current_test_case})
-        # Copy state from base_env
         test_env.state = state
 
         # transform by state
