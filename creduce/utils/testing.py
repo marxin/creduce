@@ -251,7 +251,7 @@ class TestManager:
     def create_and_run_test_env(self, state, order, folder):
         test_env = self.test_runner.create_environment(order, folder)
         # Copy files from base env
-        test_env.copy_files(self.current_test_case, self._base_test_env.additional_files_paths)
+        test_env.copy_files(self.current_test_case, self.test_cases ^ {self.current_test_case})
         # Copy state from base_env
         test_env.state = state
 
@@ -334,7 +334,7 @@ class TestManager:
             futures = []
             temporary_folders = {}
             order = 1
-            while self._base_test_env.state != None:
+            while self.state != None:
                 # do not create too many states
                 if len(futures) >= self.MAX_FUTURES:
                     wait(futures, return_when=FIRST_COMPLETED)
@@ -346,18 +346,18 @@ class TestManager:
                     return (success, futures, temporary_folders)
 
                 folder = tempfile.mkdtemp(prefix="creduce-")
-                future = pool.schedule(self.create_and_run_test_env, [self._base_test_env.state, order, folder])
+                future = pool.schedule(self.create_and_run_test_env, [self.state, order, folder])
                 temporary_folders[future] = folder
                 futures.append(future)
                 order += 1
-                state = self._pass.advance(self.current_test_case, self._base_test_env.state)
+                state = self._pass.advance(self.current_test_case, self.state)
                 # we are at the end of enumeration
                 if state == None:
                     success = self.wait_for_first_success(futures)
                     self.terminate_all(pool)
                     return (success, futures, temporary_folders)
                 else:
-                    self._base_test_env.state = state
+                    self.state = state
 
     def run_pass(self, pass_):
         self._pass = pass_
@@ -388,28 +388,21 @@ class TestManager:
                         logging.info("cache hit for {}".format(test_case))
                         continue
 
-            # Create initial test environment
-            # TODO: remove
-            folder = tempfile.mkdtemp(prefix="creduce-")
-            self._base_test_env = self.test_runner.create_environment(0, folder)
-            self._base_test_env.copy_files(test_case, self.test_cases ^ {test_case})
-            self._base_test_env.state = self._pass.new(self._base_test_env.test_case_path)
-
-            self._stopped = (self._base_test_env.state is None)
+            # create initial state
+            self.state = self._pass.new(self.current_test_case)
             self._skip = False
             self._since_success = 0
 
             if not self.skip_key_off:
                 logger = readkey.KeyLogger()
 
-            while not self._stopped and not self._skip:
+            while self.state != None and not self._skip:
                 # Ignore more key presses after skip has been detected
                 if not self.skip_key_off and not self._skip:
                     if logger.pressed_key() == "s":
                         self._skip = True
                         logging.info("****** skipping the rest of this pass ******")
 
-                # TODO: XXX
                 success_env, futures, temporary_folders = self.run_parallel_tests()
                 if not success_env:
                     return
@@ -420,13 +413,9 @@ class TestManager:
     def process_result(self, test_env):
         logging.debug("Process result")
 
-        self._base_test_env = test_env
         shutil.copy(test_env.test_case_path, self.current_test_case)
-        state = self._pass.advance_on_success(test_env.test_case_path, self._base_test_env.state)
 
-        if state is not None:
-            self._base_test_env.state = state
-        self._stopped = (state is None)
+        self.state = self._pass.advance_on_success(test_env.test_case_path, test_env.state)
         self._since_success = 0
         self.pass_statistic.update(self._pass, success=True)
 
