@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 
+from creduce.passes.abstract import PassResult
 from ..passes import CommentsPass
 
 class CommentsTestCase(unittest.TestCase):
@@ -45,7 +46,7 @@ class CommentsTestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 4:
+        while result == PassResult.OK and iteration < 4:
             state = self.pass_.advance_on_success(tmp_file.name, state)
             (result, state) = self.pass_.transform(tmp_file.name, state)
             iteration += 1
@@ -67,7 +68,7 @@ class CommentsTestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 4:
+        while result == PassResult.OK and iteration < 4:
             with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
                 tmp_file.write("/*This*/ ///contains //two\n //comments\n!\n")
 

@@ -3,7 +3,7 @@ import re
 import shutil
 import tempfile
 
-from creduce.passes.abstract import AbstractPass
+from creduce.passes.abstract import AbstractPass, PassResult
 
 class BlankPass(AbstractPass):
     def check_prerequisites(self):
@@ -41,7 +41,7 @@ class BlankPass(AbstractPass):
         patterns = [r"^\s*$", r"^#"]
 
         if state >= len(patterns):
-            return (self.Result.stop, state)
+            return (PassResult.STOP, state)
         else:
             success = False
 
@@ -49,4 +49,4 @@ class BlankPass(AbstractPass):
                 success = self.__transform(test_case, patterns[state])
                 state += 1
 
-            return (self.Result.ok if success else self.Result.stop, state)
+            return (PassResult.OK if success else PassResult.STOP, state)

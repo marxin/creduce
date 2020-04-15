@@ -4,7 +4,7 @@ import subprocess
 import shutil
 import tempfile
 
-from creduce.passes.abstract import AbstractPass
+from creduce.passes.abstract import AbstractPass, PassResult
 from creduce.utils import compat
 
 class ClangPass(AbstractPass):
@@ -29,15 +29,15 @@ class ClangPass(AbstractPass):
             try:
                 proc = compat.subprocess_run(cmd, universal_newlines=True, stdout=tmp_file)
             except subprocess.SubprocessError:
-                return (self.Result.error, state)
+                return (PassResult.ERROR, state)
 
         if proc.returncode == 0:
             shutil.move(tmp_file.name, test_case)
-            return (self.Result.ok, state)
+            return (PassResult.OK, state)
         else:
             os.unlink(tmp_file.name)
 
             if proc.returncode == 255 or proc.returncode == 1:
-                return (self.Result.stop, state)
+                return (PassResult.STOP, state)
             else:
-                return (self.Result.error, state)
+                return (PassResult.ERROR, state)

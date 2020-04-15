@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import tempfile
 
-from creduce.passes.abstract import AbstractPass
+from creduce.passes.abstract import AbstractPass, PassResult
 from creduce.utils import compat
 
 class ClexPass(AbstractPass):
@@ -26,11 +26,11 @@ class ClexPass(AbstractPass):
             try:
                 proc = compat.subprocess_run(cmd, universal_newlines=True, stdout=tmp_file)
             except subprocess.SubprocessError:
-                return (self.Result.error, state)
+                return (PassResult.ERROR, state)
 
         if proc.returncode == 51:
             shutil.move(tmp_file.name, test_case)
-            return (self.Result.ok, state)
+            return (PassResult.OK, state)
         else:
             os.unlink(tmp_file.name)
-            return (self.Result.stop if proc.returncode == 71 else self.Result.error, state)
+            return (PassResult.STOP if proc.returncode == 71 else PassResult.ERROR, state)

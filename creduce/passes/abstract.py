@@ -3,6 +3,15 @@ import enum
 import logging
 import copy
 
+from enum import Enum, auto
+
+@enum.unique
+class PassResult(Enum):
+    OK = auto()
+    INVALID = auto()
+    STOP = auto()
+    ERROR = auto()
+
 class BinaryState:
     def __init__(self):
         pass
@@ -50,14 +59,6 @@ class BinaryState:
             return self
 
 class AbstractPass:
-    @enum.unique
-    class Result(enum.Enum):
-        ok = 0
-        done = 1
-        invalid = 2
-        stop = 3
-        error = 4
-
     @enum.unique
     class Option(enum.Enum):
         slow = "slow"

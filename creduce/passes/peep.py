@@ -1,6 +1,6 @@
 import re
 
-from creduce.passes.abstract import AbstractPass
+from creduce.passes.abstract import AbstractPass, PassResult
 from creduce.utils import nestedmatcher
 
 class PeepPass(AbstractPass):
@@ -156,7 +156,7 @@ class PeepPass(AbstractPass):
             prog2 = prog
 
         if state["pos"] > len(prog):
-            return (self.Result.stop, state)
+            return (PassResult.STOP, state)
 
         if self.arg == "a":
             l = self.regexes_to_replace[state["regex"]]
@@ -172,7 +172,7 @@ class PeepPass(AbstractPass):
                     with open(test_case, "w") as out_file:
                         out_file.write(prog2)
 
-                    return (self.Result.ok, state)
+                    return (PassResult.OK, state)
         elif self.arg == "b":
             l = self.delimited_regexes_to_replace[state["regex"]]
             search = l[0]
@@ -199,7 +199,7 @@ class PeepPass(AbstractPass):
                     with open(test_case, "w") as out_file:
                         out_file.write(prog2)
 
-                    return (self.Result.ok, state)
+                    return (PassResult.OK, state)
         elif self.arg == "c":
             search = [nestedmatcher.RegExPattern(r"^while\s*"),
                       nestedmatcher.BalancedPattern(nestedmatcher.BalancedExpr.parens),
@@ -217,8 +217,8 @@ class PeepPass(AbstractPass):
                     with open(test_case, "w") as out_file:
                         out_file.write(prog2)
 
-                    return (self.Result.ok, state)
+                    return (PassResult.OK, state)
         else:
             raise UnknownArgumentError()
 
-        return (self.Result.invalid, state)
+        return (PassResult.INVALID, state)

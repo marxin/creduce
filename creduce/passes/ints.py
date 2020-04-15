@@ -1,6 +1,6 @@
 import re
 
-from creduce.passes.abstract import AbstractPass
+from creduce.passes.abstract import AbstractPass, PassResult
 from creduce.utils.error import UnknownArgumentError
 
 class IntsPass(AbstractPass):
@@ -73,7 +73,7 @@ class IntsPass(AbstractPass):
 
         while True:
             if state is None:
-                return (self.Result.stop, state)
+                return (PassResult.STOP, state)
             else:
                 prog2 = prog2[:state.start()] + config["replace_fn"](state) + prog2[state.end():]
 
@@ -81,6 +81,6 @@ class IntsPass(AbstractPass):
                     with open(test_case, "w") as out_file:
                         out_file.write(prog2)
 
-                    return (self.Result.ok, state)
+                    return (PassResult.OK, state)
                 else:
                     state = self.advance(test_case, state)

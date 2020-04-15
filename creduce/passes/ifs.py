@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import re
 
-from creduce.passes.abstract import AbstractPass, BinaryState
+from creduce.passes.abstract import AbstractPass, BinaryState, PassResult
 from creduce.utils import compat
 
 class IfPass(AbstractPass):
@@ -77,5 +77,5 @@ class IfPass(AbstractPass):
             cmd = [self.external_programs["unifdef"], "-B", "-x", "2", "-k", "-o", test_case, tmp_file.name]
             proc = compat.subprocess_run(cmd, universal_newlines=True)
         except subprocess.SubprocessError:
-            return (self.Result.error, state)
-        return (self.Result.ok, state)
+            return (PassResult.ERROR, state)
+        return (PassResult.OK, state)

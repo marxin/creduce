@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import tempfile
 
-from creduce.passes.abstract import AbstractPass, BinaryState
+from creduce.passes.abstract import AbstractPass, BinaryState, PassResult
 from creduce.utils import compat
 
 class LinesPass(AbstractPass):
@@ -17,7 +17,7 @@ class LinesPass(AbstractPass):
                     cmd = [self.external_programs["topformflat"], self.arg]
                     proc = compat.subprocess_run(cmd, stdin=in_file, stdout=subprocess.PIPE, universal_newlines=True)
                 except subprocess.SubprocessError:
-                    return (self.Result.error, new_state)
+                    return (PassResult.ERROR, new_state)
 
             for l in proc.stdout.splitlines(keepends=True):
                 if not l.isspace():
@@ -54,4 +54,4 @@ class LinesPass(AbstractPass):
 
         shutil.move(tmp_file.name, test_case)
 
-        return (self.Result.ok, state)
+        return (PassResult.OK, state)

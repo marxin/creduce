@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import re
 
-from creduce.passes.abstract import AbstractPass, BinaryState
+from creduce.passes.abstract import AbstractPass, BinaryState, PassResult
 
 class LineMarkersPass(AbstractPass):
     line_regex = re.compile('^\\s*#\\s*[0-9]+')
@@ -42,4 +42,4 @@ class LineMarkersPass(AbstractPass):
                         tmp_file.write(line)
 
         shutil.move(tmp_file.name, test_case)
-        return (self.Result.ok, state)
+        return (PassResult.OK, state)

@@ -3,7 +3,7 @@ import re
 import shutil
 import tempfile
 
-from creduce.passes.abstract import AbstractPass
+from creduce.passes.abstract import AbstractPass, PassResult
 
 class IncludeIncludesPass(AbstractPass):
     def check_prerequisites(self):
@@ -46,7 +46,7 @@ class IncludeIncludesPass(AbstractPass):
 
         if matched:
             shutil.move(tmp_file.name, test_case)
-            return (self.Result.ok, state)
+            return (PassResult.OK, state)
         else:
             os.unlink(tmp_file.name)
-            return (self.Result.stop, state)
+            return (PassResult.STOP, state)

@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 
+from creduce.passes.abstract import PassResult
 from ..passes import PeepPass
 
 class PeepATestCase(unittest.TestCase):
@@ -87,7 +88,7 @@ class PeepATestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 5:
+        while result == PassResult.OK and iteration < 5:
             state = self.pass_.advance_on_success(tmp_file.name, state)
             (result, state) = self.pass_.transform(tmp_file.name, state)
             iteration += 1
@@ -109,7 +110,7 @@ class PeepATestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 8:
+        while result == PassResult.OK and iteration < 8:
             with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
                 tmp_file.write("struct test_t {int a;} foo = {1};\n")
 
@@ -148,7 +149,7 @@ class PeepBTestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 11:
+        while result == PassResult.OK and iteration < 11:
             state = self.pass_.advance_on_success(tmp_file.name, state)
             (result, state) = self.pass_.transform(tmp_file.name, state)
             iteration += 1
@@ -170,7 +171,7 @@ class PeepBTestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 38:
+        while result == PassResult.OK and iteration < 38:
             with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
                 tmp_file.write("struct test_t {int a;} foo = {1};\n")
 
@@ -191,7 +192,7 @@ class PeepBTestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 4:
+        while result == PassResult.OK and iteration < 4:
             state = self.pass_.advance(tmp_file.name, state)
             (result, state) = self.pass_.transform(tmp_file.name, state)
             iteration += 1

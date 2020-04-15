@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import tempfile
 
-from creduce.passes.abstract import AbstractPass
+from creduce.passes.abstract import AbstractPass, PassResult
 from creduce.utils import compat
 
 class UnIfDefPass(AbstractPass):
@@ -25,7 +25,7 @@ class UnIfDefPass(AbstractPass):
             cmd = [self.external_programs["unifdef"], "-s", test_case]
             proc = compat.subprocess_run(cmd, universal_newlines=True, stdout=subprocess.PIPE)
         except subprocess.SubprocessError:
-            return (self.Result.error, state)
+            return (PassResult.ERROR, state)
 
         defs = {}
 
@@ -41,7 +41,7 @@ class UnIfDefPass(AbstractPass):
 
                 if n_index >= len(deflist):
                     os.unlink(tmp_file.name)
-                    return (self.Result.stop, state)
+                    return (PassResult.STOP, state)
 
                 def_ = deflist[n_index]
 
@@ -49,11 +49,11 @@ class UnIfDefPass(AbstractPass):
                     cmd = [self.external_programs["unifdef"], "-B", "-x", "2", "{}{}".format(du, def_), "-o", tmp_file.name, test_case]
                     proc = compat.subprocess_run(cmd, universal_newlines=True)
                 except subprocess.SubprocessError:
-                    return (self.Result.error, state)
+                    return (PassResult.ERROR, state)
 
                 if filecmp.cmp(test_case, tmp_file.name, shallow=False):
                     state += 1
                     continue
 
                 shutil.move(tmp_file.name, test_case)
-                return (self.Result.ok, state)
+                return (PassResult.OK, state)

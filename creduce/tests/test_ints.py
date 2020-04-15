@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 
+from creduce.passes.abstract import PassResult
 from ..passes import IntsPass
 
 class IntsATestCase(unittest.TestCase):
@@ -31,7 +32,7 @@ class IntsATestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 6:
+        while result == PassResult.OK and iteration < 6:
             state = self.pass_.advance_on_success(tmp_file.name, state)
             (result, state) = self.pass_.transform(tmp_file.name, state)
             iteration += 1
@@ -53,7 +54,7 @@ class IntsATestCase(unittest.TestCase):
 
         iteration = 0
 
-        while result == self.pass_.Result.ok and iteration < 4:
+        while result == PassResult.OK and iteration < 4:
             with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
                 tmp_file.write("Compute 123L + 0x456 + 0789!\n")
 

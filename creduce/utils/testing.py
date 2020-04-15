@@ -31,7 +31,7 @@ from concurrent.futures import wait, FIRST_COMPLETED
 from pebble import ProcessPool
 
 from .. import CReduce
-from creduce.passes.abstract import AbstractPass
+from creduce.passes.abstract import AbstractPass, PassResult
 
 from . import compat
 from . import readkey
@@ -278,14 +278,14 @@ class TestManager:
 
         # transform by state
         (result, test_env.state) = self._pass.transform(test_env.test_case_path, test_env.state)
-        if result != self._pass.Result.ok:
+        if result != PassResult.OK:
             return (result, test_env)
 
         # run test script
         p = test_env.run_test()
         self.__exitcode = p.returncode
 
-        return (self._pass.Result.ok if self.__exitcode == 0 else self._pass.Result.invalid, test_env)
+        return (PassResult.OK if self.__exitcode == 0 else PassResult.INVALID, test_env)
 
     def run_parallel_tests(self):
         with ProcessPool(max_workers=self.parallel_tests) as pool:
@@ -300,7 +300,7 @@ class TestManager:
                 candidate = None
                 for future in done:
                     (result, test_env) = future.result()
-                    if result == self._pass.Result.ok or result == self._pass.Result.stop or result == self._pass.Result.error:
+                    if result == PassResult.OK or result == PassResult.STOP or result == PassResult.ERROR:
                         candidate = future
                         break
 
@@ -310,7 +310,7 @@ class TestManager:
                         f.result()
                         (result, _) = future.result()
                         # TODO: add method for it
-                        if result == self._pass.Result.ok or result == self._pass.Result.stop or result == self._pass.Result.error:
+                        if result == PassResult.OK or result == PassResult.STOP or result == PassResult.ERROR:
                             break
 
                     # we joined all futures before the candidate, let's close the pool
@@ -386,7 +386,7 @@ class TestManager:
                 if not finished:
                     return
 
-                candidates = [f.result()[1] for f in finished if f.result()[0] == self._pass.Result.ok]
+                candidates = [f.result()[1] for f in finished if f.result()[0] == PassResult.OK]
                 candidates = sorted(candidates, key = lambda c: c.order)
                 if candidates:
                     self.process_result(candidates[0])
