@@ -125,7 +125,7 @@ class TestManager:
     GIVEUP_CONSTANT = 50000
     MAX_CRASH_DIRS = 10
     MAX_EXTRA_DIRS = 25000
-    MAX_FUTURES = 4
+    MAX_FUTURES = 32
 
     def __init__(self, test_runner, pass_statistic, test_cases, parallel_tests, no_cache, skip_key_off, silent_pass_bug, die_on_pass_bug, print_diff, max_improvement, no_give_up, also_interesting):
         self.test_runner = test_runner
