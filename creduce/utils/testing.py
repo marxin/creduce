@@ -278,9 +278,16 @@ class TestManager:
         assert not any(temporary_folders)
 
     def process_done_futures(self, futures, temporary_folders):
-        have_candidate = False
+        quit_loop = False
+        have_success = False
         new_futures = []
         for future in futures:
+            # all items after first successfull should be cancelled
+            if have_success:
+                future.cancel()
+                self.release_folder(future, temporary_folders)
+                continue
+
             if future.done():
                 if future.exception():
                     # TODO
@@ -290,7 +297,8 @@ class TestManager:
                 if test_env.success:
                     # TODO check for max_improvement
                     # TODO check for size change
-                    have_candidate = True
+                    quit_loop = True
+                    have_success = True
                     new_futures.append(future)
                 else:
                     if test_env.result == PassResult.OK:
@@ -298,7 +306,7 @@ class TestManager:
                         # TODO: also interesting check
                     elif test_env.result == PassResult.STOP:
                         # TODO: stop it
-                        have_candidate = True
+                        quit_loop = True
                     elif test_env.result == PassResult.ERROR:
                         # TODO: report error
                         assert False
@@ -310,7 +318,7 @@ class TestManager:
             else:
                 new_futures.append(future)
 
-        return (have_candidate, new_futures)
+        return (quit_loop, new_futures)
 
     def wait_for_first_success(self, futures):
         for future in futures:
@@ -334,8 +342,8 @@ class TestManager:
                 if len(futures) >= self.parallel_tests:
                     wait(futures, return_when=FIRST_COMPLETED)
 
-                (have_candidate, futures) = self.process_done_futures(futures, temporary_folders)
-                if have_candidate:
+                (quit_loop, futures) = self.process_done_futures(futures, temporary_folders)
+                if quit_loop:
                     success = self.wait_for_first_success(futures)
                     self.terminate_all(pool)
                     return (success, futures, temporary_folders)
