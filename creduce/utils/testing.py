@@ -54,8 +54,6 @@ class TestEnvironment:
         self.result = None
         self.order = order
 
-    def __enter__(self):
-        return self
     def copy_files(self, test_case, additional_files):
         if test_case is not None:
             self.test_case = os.path.basename(test_case)
@@ -125,7 +123,6 @@ class TestManager:
     GIVEUP_CONSTANT = 50000
     MAX_CRASH_DIRS = 10
     MAX_EXTRA_DIRS = 25000
-    MAX_FUTURES = 32
 
     def __init__(self, test_runner, pass_statistic, test_cases, parallel_tests, no_cache, skip_key_off, silent_pass_bug, die_on_pass_bug, print_diff, max_improvement, no_give_up, also_interesting):
         self.test_runner = test_runner
@@ -142,22 +139,22 @@ class TestManager:
         self.also_interesting = also_interesting
 
         for test_case in test_cases:
-            self._check_file_permissions(test_case, [os.F_OK, os.R_OK, os.W_OK], InvalidTestCaseError)
+            self.check_file_permissions(test_case, [os.F_OK, os.R_OK, os.W_OK], InvalidTestCaseError)
             self.test_cases.add(os.path.abspath(test_case))
 
-        self._orig_total_file_size = self.total_file_size
-        self._cache = {}
+        self.orig_total_file_size = self.total_file_size
+        self.cache = {}
 
     @property
     def total_file_size(self):
-        return self._get_file_size(self.test_cases)
+        return self.get_file_size(self.test_cases)
 
     @property
     def sorted_test_cases(self):
         return sorted(self.test_cases, key=os.path.getsize)
 
     @staticmethod
-    def _get_file_size(files):
+    def get_file_size(files):
         return sum(os.path.getsize(f) for f in files)
 
     def backup_test_cases(self):
@@ -169,7 +166,7 @@ class TestManager:
                 shutil.copy2(f, orig_file)
 
     @staticmethod
-    def _check_file_permissions(path, modes, error):
+    def check_file_permissions(path, modes, error):
         for m in modes:
             if not os.access(path, m):
                 if error is not None:
@@ -180,7 +177,7 @@ class TestManager:
         return True
 
     @staticmethod
-    def _get_extra_dir(prefix, max_number):
+    def get_extra_dir(prefix, max_number):
         for i in range(0, max_number + 1):
             digits = int(round(math.log10(max_number), 0))
             extra_dir = ("{0}{1:0" + str(digits) + "d}").format(prefix, i)
@@ -195,11 +192,11 @@ class TestManager:
 
         return extra_dir
 
-    def _report_pass_bug(self, test_env, problem):
+    def report_pass_bug(self, test_env, problem):
         if not self.die_on_pass_bug:
-            logging.warning("{} has encountered a non fatal bug: {}".format(self._pass, problem))
+            logging.warning("{} has encountered a non fatal bug: {}".format(self.current_pass, problem))
 
-        crash_dir = self._get_extra_dir("creduce_bug_", self.MAX_CRASH_DIRS)
+        crash_dir = self.get_extra_dir("creduce_bug_", self.MAX_CRASH_DIRS)
 
         if crash_dir == None:
             return
@@ -214,13 +211,13 @@ class TestManager:
             info_file.write("{}\n".format(CReduce.Info.PACKAGE_STRING))
             info_file.write("{}\n".format(CReduce.Info.GIT_VERSION))
             info_file.write("{}\n".format(platform.uname()))
-            info_file.write(PassBugError.MSG.format(self._pass, problem, crash_dir))
+            info_file.write(PassBugError.MSG.format(self.current_pass, problem, crash_dir))
 
         if self.die_on_pass_bug:
-            raise PassBugError(self._pass, problem, crash_dir)
+            raise PassBugError(self.current_pass, problem, crash_dir)
 
     @staticmethod
-    def _diff_files(orig_file, changed_file):
+    def diff_files(orig_file, changed_file):
         with open(orig_file, mode="r") as f:
             orig_file_lines = f.readlines()
 
@@ -254,7 +251,7 @@ class TestManager:
         test_env.state = state
 
         # transform by state
-        (result, test_env.state) = self._pass.transform(test_env.test_case_path, test_env.state)
+        (result, test_env.state) = self.current_pass.transform(test_env.test_case_path, test_env.state)
         test_env.result = result
         if test_env.result != PassResult.OK:
             return test_env
@@ -334,7 +331,7 @@ class TestManager:
             order = 1
             while self.state != None:
                 # do not create too many states
-                if len(futures) >= self.MAX_FUTURES:
+                if len(futures) >= self.parallel_tests:
                     wait(futures, return_when=FIRST_COMPLETED)
 
                 (have_candidate, futures) = self.process_done_futures(futures, temporary_folders)
@@ -348,7 +345,7 @@ class TestManager:
                 temporary_folders[future] = folder
                 futures.append(future)
                 order += 1
-                state = self._pass.advance(self.current_test_case, self.state)
+                state = self.current_pass.advance(self.current_test_case, self.state)
                 # we are at the end of enumeration
                 if state == None:
                     success = self.wait_for_first_success(futures)
@@ -358,10 +355,10 @@ class TestManager:
                     self.state = state
 
     def run_pass(self, pass_):
-        self._pass = pass_
+        self.current_pass = pass_
         self.futures = []
 
-        logging.info("===< {} >===".format(self._pass))
+        logging.info("===< {} >===".format(self.current_pass))
 
         if self.total_file_size == 0:
             raise zerosizeerror(self.test_cases)
@@ -369,36 +366,36 @@ class TestManager:
         for test_case in self.test_cases:
             self.current_test_case = test_case
 
-            if self._get_file_size([test_case]) == 0:
+            if self.get_file_size([test_case]) == 0:
                 continue
 
             if not self.no_cache:
                 with open(test_case, mode="r+") as tmp_file:
                     test_case_before_pass = tmp_file.read()
 
-                    pass_key = repr(self._pass)
+                    pass_key = repr(self.current_pass)
 
-                    if (pass_key in self._cache and
-                        test_case_before_pass in self._cache[pass_key]):
+                    if (pass_key in self.cache and
+                        test_case_before_pass in self.cache[pass_key]):
                         tmp_file.seek(0)
                         tmp_file.truncate(0)
-                        tmp_file.write(self._cache[pass_key][test_case_before_pass])
+                        tmp_file.write(self.cache[pass_key][test_case_before_pass])
                         logging.info("cache hit for {}".format(test_case))
                         continue
 
             # create initial state
-            self.state = self._pass.new(self.current_test_case)
-            self._skip = False
-            self._since_success = 0
+            self.state = self.current_pass.new(self.current_test_case)
+            self.skip = False
+            self.since_success = 0
 
             if not self.skip_key_off:
                 logger = readkey.KeyLogger()
 
-            while self.state != None and not self._skip:
+            while self.state != None and not self.skip:
                 # Ignore more key presses after skip has been detected
-                if not self.skip_key_off and not self._skip:
+                if not self.skip_key_off and not self.skip:
                     if logger.pressed_key() == "s":
-                        self._skip = True
+                        self.skip = True
                         logging.info("****** skipping the rest of this pass ******")
 
                 success_env, futures, temporary_folders = self.run_parallel_tests()
@@ -413,9 +410,9 @@ class TestManager:
 
         shutil.copy(test_env.test_case_path, self.current_test_case)
 
-        self.state = self._pass.advance_on_success(test_env.test_case_path, test_env.state)
-        self._since_success = 0
-        self.pass_statistic.update(self._pass, success=True)
+        self.state = self.current_pass.advance_on_success(test_env.test_case_path, test_env.state)
+        self.since_success = 0
+        self.pass_statistic.update(self.current_pass, success=True)
 
-        pct = 100 - (self.total_file_size * 100.0 / self._orig_total_file_size)
+        pct = 100 - (self.total_file_size * 100.0 / self.orig_total_file_size)
         logging.info("({}%, {} bytes)".format(round(pct, 1), self.total_file_size))
