@@ -19,7 +19,8 @@ class IncludesPass(AbstractPass):
         return state
 
     def transform(self, test_case, state):
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tmp_file:
+        tmp = os.path.dirname(test_case)
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, dir=tmp) as tmp_file:
             with open(test_case, "r") as in_file:
                 includes = 0
                 matched = False

@@ -21,13 +21,14 @@ class ClangPass(AbstractPass):
         return state
 
     def transform(self, test_case, state):
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tmp_file:
+        tmp = os.path.dirname(test_case)
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, dir=tmp) as tmp_file:
             cmd = [self.external_programs["clang_delta"], "--transformation={}".format(self.arg), "--counter={}".format(state), test_case]
 
             logging.debug(" ".join(cmd))
 
             try:
-                proc = compat.subprocess_run(cmd, universal_newlines=True, stdout=tmp_file)
+                proc = compat.subprocess_run(cmd, universal_newlines=True, stdout=tmp_file, stderr=subprocess.PIPE)
             except subprocess.SubprocessError:
                 return (PassResult.ERROR, state)
 

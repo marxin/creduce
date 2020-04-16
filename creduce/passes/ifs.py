@@ -53,7 +53,8 @@ class IfPass(AbstractPass):
         return state.advance_on_success(self.__count_instances(test_case))
 
     def transform(self, test_case, state):
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tmp_file:
+        tmp = os.path.dirname(test_case)
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, dir=tmp) as tmp_file:
             with open(test_case, "r") as in_file:
                 i = 0
                 in_multiline = False
@@ -75,7 +76,7 @@ class IfPass(AbstractPass):
 
         try:
             cmd = [self.external_programs["unifdef"], "-B", "-x", "2", "-k", "-o", test_case, tmp_file.name]
-            proc = compat.subprocess_run(cmd, universal_newlines=True)
+            proc = compat.subprocess_run(cmd, universal_newlines=True, stderr=subprocess.PIPE)
         except subprocess.SubprocessError:
             return (PassResult.ERROR, state)
         return (PassResult.OK, state)

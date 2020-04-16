@@ -246,20 +246,26 @@ class TestManager:
             raise InsaneTestCaseError(self.test_cases, p.args)
 
     def create_and_run_test_env(self, state, order, folder):
-        test_env = self.test_runner.create_environment(order, folder)
-        test_env.copy_files(self.current_test_case, self.test_cases ^ {self.current_test_case})
-        test_env.state = state
+        try:
+            test_env = self.test_runner.create_environment(order, folder)
+            test_env.copy_files(self.current_test_case, self.test_cases ^ {self.current_test_case})
+            test_env.state = state
 
-        # transform by state
-        (result, test_env.state) = self.current_pass.transform(test_env.test_case_path, test_env.state)
-        test_env.result = result
-        if test_env.result != PassResult.OK:
+            # transform by state
+            (result, test_env.state) = self.current_pass.transform(test_env.test_case_path, test_env.state)
+            test_env.result = result
+            if test_env.result != PassResult.OK:
+                return test_env
+
+            # run test script
+            p = test_env.run_test()
+            test_env.exitcode = p.returncode
             return test_env
-
-        # run test script
-        p = test_env.run_test()
-        test_env.exitcode = p.returncode
-        return test_env
+        except OSError as e:
+            # TODO: this can happen when we clean up temporary files
+            pass
+        except Exception as e:
+            print('Should not happen: ' + str(e))
 
     @classmethod
     def release_folder(cls, future, temporary_folders):
@@ -279,11 +285,10 @@ class TestManager:
 
     def process_done_futures(self, futures, temporary_folders):
         quit_loop = False
-        have_success = False
         new_futures = []
         for future in futures:
-            # all items after first successfull should be cancelled
-            if have_success:
+            # all items after first successfull (or STOP) should be cancelled
+            if quit_loop:
                 future.cancel()
                 self.release_folder(future, temporary_folders)
                 continue
@@ -298,7 +303,6 @@ class TestManager:
                     # TODO check for max_improvement
                     # TODO check for size change
                     quit_loop = True
-                    have_success = True
                     new_futures.append(future)
                 else:
                     if test_env.result == PassResult.OK:

@@ -23,7 +23,7 @@ class UnIfDefPass(AbstractPass):
     def transform(self, test_case, state):
         try:
             cmd = [self.external_programs["unifdef"], "-s", test_case]
-            proc = compat.subprocess_run(cmd, universal_newlines=True, stdout=subprocess.PIPE)
+            proc = compat.subprocess_run(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except subprocess.SubprocessError:
             return (PassResult.ERROR, state)
 
@@ -34,7 +34,8 @@ class UnIfDefPass(AbstractPass):
 
         deflist = list(sorted(defs.keys()))
 
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tmp_file:
+        tmp = os.path.dirname(test_case)
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, dir=tmp) as tmp_file:
             while True:
                 du = "-D" if state % 2 == 0 else "-U"
                 n_index = state / 2
