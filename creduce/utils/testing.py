@@ -274,7 +274,7 @@ class TestManager:
             # TODO: remove
             assert 'creduce-' in name and 'tmp' in name
             shutil.rmtree(name)
-        except FileNotFoundError:
+        except OSError:
             pass
 
     @classmethod
