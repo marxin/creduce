@@ -40,6 +40,13 @@ from .error import InvalidTestCaseError
 from .error import PassBugError
 from .error import ZeroSizeError
 
+def rmfolder(name):
+    assert 'creduce' in name
+    try:
+        shutil.rmtree(name)
+    except OSError:
+        pass
+
 class TestEnvironment:
     def __init__(self, test_script, timeout, save_temps, order, folder):
         self.test_case = None
@@ -123,6 +130,7 @@ class TestManager:
     GIVEUP_CONSTANT = 50000
     MAX_CRASH_DIRS = 10
     MAX_EXTRA_DIRS = 25000
+    TEMP_PREFIX = "creduce-"
 
     def __init__(self, test_runner, pass_statistic, test_cases, parallel_tests, no_cache, skip_key_off, silent_pass_bug, die_on_pass_bug, print_diff, max_improvement, no_give_up, also_interesting):
         self.test_runner = test_runner
@@ -144,6 +152,13 @@ class TestManager:
 
         self.orig_total_file_size = self.total_file_size
         self.cache = {}
+        self.root = None
+
+    def create_root(self):
+        self.root = tempfile.mkdtemp(prefix=self.TEMP_PREFIX)
+
+    def remove_root(self):
+        rmfolder(self.root)
 
     @property
     def total_file_size(self):
@@ -231,8 +246,7 @@ class TestManager:
     def check_sanity(self):
         logging.debug("perform sanity check... ")
 
-        # TODO: release
-        folder = tempfile.mkdtemp(prefix="creduce-")
+        folder = tempfile.mkdtemp(prefix=self.TEMP_PREFIX)
         test_env = self.test_runner.create_environment(0, folder)
 
         logging.debug("sanity check tmpdir = {}".format(test_env.folder))
@@ -240,6 +254,7 @@ class TestManager:
         test_env.copy_files(None, self.test_cases)
 
         p = test_env.run_test()
+        rmfolder(folder)
         if not p.returncode:
             logging.debug("sanity check successful")
         else:
@@ -262,7 +277,7 @@ class TestManager:
             test_env.exitcode = p.returncode
             return test_env
         except OSError as e:
-            # TODO: this can happen when we clean up temporary files
+            # this can happen when we clean up temporary files for cancelled processes
             pass
         except Exception as e:
             print('Should not happen: ' + str(e))
@@ -270,12 +285,7 @@ class TestManager:
     @classmethod
     def release_folder(cls, future, temporary_folders):
         name = temporary_folders.pop(future)
-        try:
-            # TODO: remove
-            assert 'creduce-' in name and 'tmp' in name
-            shutil.rmtree(name)
-        except OSError:
-            pass
+        rmfolder(name)
 
     @classmethod
     def release_folders(cls, futures, temporary_folders):
@@ -352,7 +362,7 @@ class TestManager:
                     self.terminate_all(pool)
                     return (success, futures, temporary_folders)
 
-                folder = tempfile.mkdtemp(prefix="creduce-")
+                folder = tempfile.mkdtemp(prefix=self.TEMP_PREFIX, dir=self.root)
                 future = pool.schedule(self.create_and_run_test_env, [self.state, order, folder])
                 temporary_folders[future] = folder
                 futures.append(future)
@@ -369,6 +379,7 @@ class TestManager:
     def run_pass(self, pass_):
         self.current_pass = pass_
         self.futures = []
+        self.create_root()
 
         logging.info("===< {} >===".format(self.current_pass))
 
@@ -412,10 +423,12 @@ class TestManager:
 
                 success_env, futures, temporary_folders = self.run_parallel_tests()
                 if not success_env:
+                    self.remove_root()
                     return
 
                 self.process_result(success_env)
                 self.release_folders(futures, temporary_folders)
+        self.remove_root()
 
     def process_result(self, test_env):
         logging.debug("Process result")
