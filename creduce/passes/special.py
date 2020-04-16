@@ -43,6 +43,8 @@ class SpecialPass(AbstractPass):
         return m
 
     def new(self, test_case):
+        # TODO: port to new ProcessPool
+        return None
         return self.__get_next_match(test_case, pos=0)
 
     def advance(self, test_case, state):
