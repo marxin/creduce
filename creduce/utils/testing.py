@@ -38,12 +38,11 @@ def rmfolder(name):
         pass
 
 class TestEnvironment:
-    def __init__(self, test_script, timeout, save_temps, order, folder):
+    def __init__(self, test_script, save_temps, order, folder):
         self.test_case = None
         self.additional_files = set()
         self.state = None
         self.folder = folder
-        self.timeout = timeout
         self.save_temps = save_temps
         self.base_size = None
         self.test_script = test_script
@@ -97,33 +96,18 @@ class TestEnvironment:
 
         return subprocess.run(cmd, cwd=self.folder, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-class TestRunner:
-    def __init__(self, test_script, timeout, save_temps):
-        self.test_script = os.path.abspath(test_script)
-        if not self.is_valid_test(test_script):
-            raise InvalidInterestingnessTestError(test)
-
-        self.timeout = timeout
-        self.save_temps = save_temps
-
-    @classmethod
-    def is_valid_test(cls, test_script):
-        for mode in {os.F_OK, os.X_OK}:
-            if not os.access(test_script, mode):
-                return False
-        return True
-
-    def create_environment(self, order, folder):
-        return TestEnvironment(self.test_script, self.timeout, self.save_temps, order, folder)
-
 class TestManager:
     GIVEUP_CONSTANT = 50000
     MAX_CRASH_DIRS = 10
     MAX_EXTRA_DIRS = 25000
     TEMP_PREFIX = "creduce-"
 
-    def __init__(self, test_runner, pass_statistic, test_cases, parallel_tests, no_cache, skip_key_off, silent_pass_bug, die_on_pass_bug, print_diff, max_improvement, no_give_up, also_interesting):
-        self.test_runner = test_runner
+    def __init__(self, pass_statistic, test_script, timeout, save_temps, test_cases, parallel_tests,
+            no_cache, skip_key_off, silent_pass_bug, die_on_pass_bug, print_diff, max_improvement,
+            no_give_up, also_interesting):
+        self.test_script = os.path.abspath(test_script)
+        self.timeout = timeout
+        self.save_temps = save_temps
         self.pass_statistic = pass_statistic
         self.test_cases = set()
         self.parallel_tests = parallel_tests
@@ -144,11 +128,21 @@ class TestManager:
         self.cache = {}
         self.root = None
 
+        if not self.is_valid_test(self.test_script):
+            raise InvalidInterestingnessTestError(test)
+
     def create_root(self):
         self.root = tempfile.mkdtemp(prefix=self.TEMP_PREFIX)
 
     def remove_root(self):
         rmfolder(self.root)
+
+    @classmethod
+    def is_valid_test(cls, test_script):
+        for mode in {os.F_OK, os.X_OK}:
+            if not os.access(test_script, mode):
+                return False
+        return True
 
     @property
     def total_file_size(self):
@@ -237,7 +231,7 @@ class TestManager:
         logging.debug("perform sanity check... ")
 
         folder = tempfile.mkdtemp(prefix=self.TEMP_PREFIX)
-        test_env = self.test_runner.create_environment(0, folder)
+        test_env = self.create_environment(0, folder)
 
         logging.debug("sanity check tmpdir = {}".format(test_env.folder))
 
@@ -250,9 +244,12 @@ class TestManager:
         else:
             raise InsaneTestCaseError(self.test_cases, p.args)
 
+    def create_environment(self, order, folder):
+        return TestEnvironment(self.test_script, self.save_temps, order, folder)
+
     def create_and_run_test_env(self, state, order, folder):
         try:
-            test_env = self.test_runner.create_environment(order, folder)
+            test_env = self.create_environment(order, folder)
             test_env.copy_files(self.current_test_case, self.test_cases ^ {self.current_test_case})
             test_env.state = state
 

@@ -186,11 +186,11 @@ if __name__ == "__main__":
 
     pass_group_dict = CReduce.load_pass_group_file(pass_group_file)
     pass_group = CReduce.parse_pass_group_dict(pass_group_dict, pass_options, external_programs, args.remove_pass)
-
-    test_runner = testing.TestRunner(args.interestingness_test, args.timeout, args.save_temps)
     pass_statistic = statistics.PassStatistic()
 
-    test_manager = testing.TestManager(test_runner, pass_statistic, args.test_cases, args.n, args.no_cache, args.skip_key_off, args.shaddap, args.die_on_pass_bug, args.print_diff, args.max_improvement, args.no_give_up, args.also_interesting)
+    test_manager = testing.TestManager(pass_statistic, args.interestingness_test, args.timeout,
+            args.save_temps, args.test_cases, args.n, args.no_cache, args.skip_key_off, args.shaddap,
+            args.die_on_pass_bug, args.print_diff, args.max_improvement, args.no_give_up, args.also_interesting)
 
     reducer = CReduce(test_manager)
 
