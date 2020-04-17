@@ -145,6 +145,11 @@ class PeepPass(AbstractPass):
             new_state["regex"] = 0
             new_state["pos"] += 1
 
+        with open(test_case, "r") as in_file:
+            length = len(in_file.read())
+            if new_state["pos"] >= length:
+                return None
+
         return new_state
 
     def advance_on_success(self, test_case, state):
