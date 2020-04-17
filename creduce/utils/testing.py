@@ -8,16 +8,6 @@ import multiprocessing
 import os
 import os.path
 import platform
-
-# Currently the resource module is only available on Unix based systems
-try:
-    import resource
-    # We're nice here and only open up to half of the allowed number of files
-    MAX_OPEN_FILES = resource.getrlimit(resource.RLIMIT_NOFILE)[0] / 2
-except ImportError:
-    # Just assume that we might be able to open up to 1024 files
-    MAX_OPEN_FILES = 1024
-
 import shutil
 import signal
 import subprocess
