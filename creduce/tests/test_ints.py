@@ -16,7 +16,7 @@ class IntsATestCase(unittest.TestCase):
         state = self.pass_.new(tmp_file.name)
         (_, state) = self.pass_.transform(tmp_file.name, state)
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
@@ -38,7 +38,7 @@ class IntsATestCase(unittest.TestCase):
             (result, state) = self.pass_.transform(tmp_file.name, state)
             iteration += 1
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
@@ -80,7 +80,7 @@ class IntsBTestCase(unittest.TestCase):
         state = self.pass_.new(tmp_file.name)
         (_, state) = self.pass_.transform(tmp_file.name, state)
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
@@ -98,7 +98,7 @@ class IntsCTestCase(unittest.TestCase):
         state = self.pass_.new(tmp_file.name)
         (_, state) = self.pass_.transform(tmp_file.name, state)
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
@@ -116,7 +116,7 @@ class IntsDTestCase(unittest.TestCase):
         state = self.pass_.new(tmp_file.name)
         (_, state) = self.pass_.transform(tmp_file.name, state)
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)

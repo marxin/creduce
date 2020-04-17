@@ -211,7 +211,7 @@ if __name__ == "__main__":
             print("method {pass} worked {worked} times and failed {failed} times".format(**item))
 
         for test_case in test_manager.sorted_test_cases:
-            with open(test_case, mode="r") as test_case_file:
+            with open(test_case) as test_case_file:
                 print(test_case_file.read())
 
     if args.timing:

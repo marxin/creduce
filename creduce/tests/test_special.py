@@ -24,7 +24,7 @@ class SpecialATestCase(unittest.TestCase):
 
         iterate_pass(self.pass_, tmp_file.name)
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
@@ -40,7 +40,7 @@ class SpecialATestCase(unittest.TestCase):
 
         iterate_pass(self.pass_, tmp_file.name)
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
@@ -58,7 +58,7 @@ class SpecialBTestCase(unittest.TestCase):
         state = self.pass_.new(tmp_file.name)
         (_, state) = self.pass_.transform(tmp_file.name, state)
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
@@ -76,7 +76,7 @@ class SpecialCTestCase(unittest.TestCase):
         state = self.pass_.new(tmp_file.name)
         (_, state) = self.pass_.transform(tmp_file.name, state)
 
-        with open(tmp_file.name, mode="r") as variant_file:
+        with open(tmp_file.name) as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)

@@ -233,10 +233,10 @@ class TestManager:
 
     @staticmethod
     def diff_files(orig_file, changed_file):
-        with open(orig_file, mode="r") as f:
+        with open(orig_file) as f:
             orig_file_lines = f.readlines()
 
-        with open(changed_file, mode="r") as f:
+        with open(changed_file) as f:
             changed_file_lines = f.readlines()
 
         diffed_lines = difflib.unified_diff(orig_file_lines, changed_file_lines, orig_file, changed_file)
