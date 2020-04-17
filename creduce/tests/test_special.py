@@ -5,6 +5,15 @@ import unittest
 from creduce.passes.abstract import PassResult
 from ..passes import SpecialPass
 
+def iterate_pass(current_pass, path):
+    state = current_pass.new(path)
+    while state != None:
+        (result, state) = current_pass.transform(path, state)
+        if result == PassResult.OK:
+            state = current_pass.advance_on_success(path, state)
+        else:
+            state = current_pass.advance(path, state)
+
 class SpecialATestCase(unittest.TestCase):
     def setUp(self):
         self.pass_ = SpecialPass("a")
@@ -13,15 +22,14 @@ class SpecialATestCase(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
             tmp_file.write('// Useless comment\ntransparent_crc(g_376.f0, "g_376.f0", print_hash_value);\ntransparent_crc(g_1194[i].f0, "g_1194[i].f0", print_hash_value);\nint a = 9;')
 
-        state = self.pass_.new(tmp_file.name)
-        (_, state) = self.pass_.transform(tmp_file.name, state)
+        iterate_pass(self.pass_, tmp_file.name)
 
         with open(tmp_file.name, mode="r") as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
 
-        self.assertEqual(variant, '// Useless comment\nprintf("%d\\n", (int)g_376.f0);\ntransparent_crc(g_1194[i].f0, "g_1194[i].f0", print_hash_value);\nint a = 9;')
+        self.assertEqual(variant, '// Useless comment\nprintf("%d\\n", (int)g_376.f0);\nprintf("%d\\n", (int)g_1194[i].f0);\nint a = 9;')
 
     def test_success_a(self):
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
@@ -30,41 +38,14 @@ class SpecialATestCase(unittest.TestCase):
         state = self.pass_.new(tmp_file.name)
         (result, state) = self.pass_.transform(tmp_file.name, state)
 
-        iteration = 0
-
-        while result == PassResult.OK and iteration < 4:
-            state = self.pass_.advance_on_success(tmp_file.name, state)
-            (result, state) = self.pass_.transform(tmp_file.name, state)
-            iteration += 1
+        iterate_pass(self.pass_, tmp_file.name)
 
         with open(tmp_file.name, mode="r") as variant_file:
             variant = variant_file.read()
 
         os.unlink(tmp_file.name)
 
-        self.assertEqual(iteration, 2)
         self.assertEqual(variant, '// Useless comment\nprintf("%d\\n", (int)g_376.f0);\nprintf("%d\\n", (int)g_1194[i].f0);\nint a = 9;')
-
-    def test_no_success_a(self):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
-            tmp_file.write('// Useless comment\ntransparent_crc(g_376.f0, "g_376.f0", print_hash_value);\ntransparent_crc(g_1194[i].f0, "g_1194[i].f0", print_hash_value);\nint a = 9;')
-
-        state = self.pass_.new(tmp_file.name)
-        (result, state) = self.pass_.transform(tmp_file.name, state)
-
-        iteration = 0
-
-        while result == PassResult.OK and iteration < 4:
-            with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
-                tmp_file.write('// Useless comment\ntransparent_crc(g_376.f0, "g_376.f0", print_hash_value);\ntransparent_crc(g_1194[i].f0, "g_1194[i].f0", print_hash_value);\nint a = 9;')
-
-            state = self.pass_.advance(tmp_file.name, state)
-            (result, state) = self.pass_.transform(tmp_file.name, state)
-            iteration += 1
-
-        os.unlink(tmp_file.name)
-
-        self.assertEqual(iteration, 2)
 
 class SpecialBTestCase(unittest.TestCase):
     def setUp(self):
