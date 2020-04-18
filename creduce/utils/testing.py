@@ -389,6 +389,7 @@ class TestManager:
         self.current_pass = pass_
         self.futures = []
         self.create_root()
+        pass_key = repr(self.current_pass)
 
         logging.info("===< {} >===".format(self.current_pass))
 
@@ -404,8 +405,6 @@ class TestManager:
             if not self.no_cache:
                 with open(test_case, mode="r+") as tmp_file:
                     test_case_before_pass = tmp_file.read()
-
-                    pass_key = repr(self.current_pass)
 
                     if (pass_key in self.cache and
                         test_case_before_pass in self.cache[pass_key]):
@@ -433,10 +432,19 @@ class TestManager:
                 success_env, futures, temporary_folders = self.run_parallel_tests()
                 if not success_env:
                     self.remove_root()
-                    return
+                    break
 
                 self.process_result(success_env)
                 self.release_folders(futures, temporary_folders)
+
+            # Cache result of this pass
+            if not self.no_cache:
+                with open(test_case, mode="r") as tmp_file:
+                    if pass_key not in self.cache:
+                        self.cache[pass_key] = {}
+
+                    self.cache[pass_key][test_case_before_pass] = tmp_file.read()
+
         self.remove_root()
 
     def process_result(self, test_env):
