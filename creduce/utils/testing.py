@@ -296,9 +296,7 @@ class TestManager:
                     logging.debug("Test timed out!")
                     self.release_folder(future, temporary_folders)
                 else:
-                    print(str(future.exception()))
-                    # TODO: fix me
-                    asdf
+                    raise future.exception()
             else:
                 if future.done():
                     test_env = future.result()
@@ -381,7 +379,7 @@ class TestManager:
         logging.info("===< {} >===".format(self.current_pass))
 
         if self.total_file_size == 0:
-            raise zerosizeerror(self.test_cases)
+            raise ZeroSizeError(self.test_cases)
 
         for test_case in self.test_cases:
             self.current_test_case = test_case
