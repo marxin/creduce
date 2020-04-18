@@ -210,10 +210,10 @@ class TestManager:
             info_file.write("{}\n".format(CReduce.Info.PACKAGE_STRING))
             info_file.write("{}\n".format(CReduce.Info.GIT_VERSION))
             info_file.write("{}\n".format(platform.uname()))
-            info_file.write(PassBugError.MSG.format(self.current_pass, problem, crash_dir))
+            info_file.write(PassBugError.MSG.format(self.current_pass, problem, test_env.state, crash_dir))
 
         if self.die_on_pass_bug:
-            raise PassBugError(self.current_pass, problem, crash_dir)
+            raise PassBugError(self.current_pass, problem, test_env.state, crash_dir)
 
     @staticmethod
     def diff_files(orig_file, changed_file):
@@ -306,23 +306,27 @@ class TestManager:
                             logging.debug("Too large improvement: {} B".format(test_env.size_improvement))
                             self.release_folder(future, temporary_folders)
                         else:
-                            # TODO check for size change
-                            quit_loop = True
-                            new_futures.append(future)
+                            # Report bug if transform did not change the file
+                            if filecmp.cmp(self.current_test_case, test_env.test_case_path):
+                                if not self.silent_pass_bug:
+                                    self.report_pass_bug(test_env, "pass failed to modify the variant")
+                                self.release_folder(future, temporary_folders)
+                            else:
+                                quit_loop = True
+                                new_futures.append(future)
                     else:
                         if test_env.result == PassResult.OK:
                             assert test_env.exitcode
                             # TODO: also interesting check
                         elif test_env.result == PassResult.STOP:
-                            # TODO: stop it
                             quit_loop = True
                         elif test_env.result == PassResult.ERROR:
-                            # TODO: report error
-                            assert False
+                            if not self.silent_pass_bug:
+                                self.report_pass_bug(test_env, "pass error")
                         else:
-                            # TODO: test_env.order GIVEUP
-                            pass
-                        # TODO
+                            if not self.no_give_up and test_env.order > self.GIVEUP_CONSTANT:
+                                self.report_pass_bug(test_env, "pass got stuck")
+                                quit_loop = True
                         self.release_folder(future, temporary_folders)
                 else:
                     new_futures.append(future)
