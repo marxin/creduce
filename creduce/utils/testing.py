@@ -428,6 +428,10 @@ class TestManager:
     def process_result(self, test_env):
         logging.debug("Process result")
 
+        if self.print_diff:
+            diff_str = self.diff_files(self.current_test_case, test_env.test_case_path)
+            logging.info(diff_str)
+
         shutil.copy(test_env.test_case_path, self.current_test_case)
 
         self.state = self.current_pass.advance_on_success(test_env.test_case_path, test_env.state)
