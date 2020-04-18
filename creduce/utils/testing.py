@@ -16,7 +16,7 @@ import tempfile
 import weakref
 
 import concurrent.futures
-from concurrent.futures import wait, FIRST_COMPLETED
+from concurrent.futures import wait, FIRST_COMPLETED, TimeoutError
 from pebble import ProcessPool
 
 from .. import CReduce
@@ -290,42 +290,51 @@ class TestManager:
                 self.release_folder(future, temporary_folders)
                 continue
 
-            if future.done():
-                if future.exception():
-                    # TODO
-                    print(str(future.exception()))
-                    asdf
-                test_env = future.result()
-                if test_env.success:
-                    # TODO check for max_improvement
-                    # TODO check for size change
-                    quit_loop = True
-                    new_futures.append(future)
-                else:
-                    if test_env.result == PassResult.OK:
-                        assert test_env.exitcode
-                        # TODO: also interesting check
-                    elif test_env.result == PassResult.STOP:
-                        # TODO: stop it
-                        quit_loop = True
-                    elif test_env.result == PassResult.ERROR:
-                        # TODO: report error
-                        assert False
-                    else:
-                        # TODO: test_env.order GIVEUP
-                        pass
-                    # TODO
+            if future.exception():
+                if type(future.exception()) is TimeoutError:
+                    future.cancel()
+                    logging.debug("Test timed out!")
                     self.release_folder(future, temporary_folders)
+                else:
+                    print(str(future.exception()))
+                    # TODO: fix me
+                    asdf
             else:
-                new_futures.append(future)
+                if future.done():
+                    test_env = future.result()
+                    if test_env.success:
+                        # TODO check for max_improvement
+                        # TODO check for size change
+                        quit_loop = True
+                        new_futures.append(future)
+                    else:
+                        if test_env.result == PassResult.OK:
+                            assert test_env.exitcode
+                            # TODO: also interesting check
+                        elif test_env.result == PassResult.STOP:
+                            # TODO: stop it
+                            quit_loop = True
+                        elif test_env.result == PassResult.ERROR:
+                            # TODO: report error
+                            assert False
+                        else:
+                            # TODO: test_env.order GIVEUP
+                            pass
+                        # TODO
+                        self.release_folder(future, temporary_folders)
+                else:
+                    new_futures.append(future)
 
         return (quit_loop, new_futures)
 
     def wait_for_first_success(self, futures):
         for future in futures:
-            test_env = future.result()
-            if test_env.success:
-                return test_env
+            try:
+                test_env = future.result()
+                if test_env.success:
+                    return test_env
+            except TimeoutError:
+                future.cancel()
         return None
 
     @classmethod
@@ -350,7 +359,8 @@ class TestManager:
                     return (success, futures, temporary_folders)
 
                 folder = tempfile.mkdtemp(prefix=self.TEMP_PREFIX, dir=self.root)
-                future = pool.schedule(self.create_and_run_test_env, [self.state, order, folder])
+                future = pool.schedule(self.create_and_run_test_env, [self.state, order, folder],
+                        timeout=self.timeout)
                 temporary_folders[future] = folder
                 futures.append(future)
                 order += 1
