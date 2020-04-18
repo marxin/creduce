@@ -301,10 +301,14 @@ class TestManager:
                 if future.done():
                     test_env = future.result()
                     if test_env.success:
-                        # TODO check for max_improvement
-                        # TODO check for size change
-                        quit_loop = True
-                        new_futures.append(future)
+                        if (self.max_improvement is not None and
+                            test_env.size_improvement > self.max_improvement):
+                            logging.debug("Too large improvement: {} B".format(test_env.size_improvement))
+                            self.release_folder(future, temporary_folders)
+                        else:
+                            # TODO check for size change
+                            quit_loop = True
+                            new_futures.append(future)
                     else:
                         if test_env.result == PassResult.OK:
                             assert test_env.exitcode
