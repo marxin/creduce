@@ -396,6 +396,9 @@ class TestManager:
         if self.total_file_size == 0:
             raise ZeroSizeError(self.test_cases)
 
+        if not self.skip_key_off:
+            logger = readkey.KeyLogger()
+
         for test_case in self.test_cases:
             self.current_test_case = test_case
 
@@ -419,15 +422,16 @@ class TestManager:
             self.skip = False
             self.since_success = 0
 
-            if not self.skip_key_off:
-                logger = readkey.KeyLogger()
-
             while self.state != None and not self.skip:
                 # Ignore more key presses after skip has been detected
                 if not self.skip_key_off and not self.skip:
-                    if logger.pressed_key() == "s":
+                    key = logger.pressed_key()
+                    if key == "s":
                         self.skip = True
                         logging.info("****** skipping the rest of this pass ******")
+                    elif key == "d":
+                        logging.info("****** toggle print diff ******")
+                        self.print_diff = not self.print_diff
 
                 success_env, futures, temporary_folders = self.run_parallel_tests()
                 if not success_env:
