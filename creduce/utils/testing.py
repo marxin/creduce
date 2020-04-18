@@ -287,14 +287,12 @@ class TestManager:
             # all items after first successfull (or STOP) should be cancelled
             if quit_loop:
                 future.cancel()
-                self.release_folder(future, temporary_folders)
                 continue
 
             if future.exception():
                 if type(future.exception()) is TimeoutError:
                     future.cancel()
                     logging.debug("Test timed out!")
-                    self.release_folder(future, temporary_folders)
                 else:
                     raise future.exception()
             else:
@@ -304,20 +302,24 @@ class TestManager:
                         if (self.max_improvement is not None and
                             test_env.size_improvement > self.max_improvement):
                             logging.debug("Too large improvement: {} B".format(test_env.size_improvement))
-                            self.release_folder(future, temporary_folders)
                         else:
                             # Report bug if transform did not change the file
                             if filecmp.cmp(self.current_test_case, test_env.test_case_path):
                                 if not self.silent_pass_bug:
                                     self.report_pass_bug(test_env, "pass failed to modify the variant")
-                                self.release_folder(future, temporary_folders)
                             else:
                                 quit_loop = True
                                 new_futures.append(future)
                     else:
                         if test_env.result == PassResult.OK:
                             assert test_env.exitcode
-                            # TODO: also interesting check
+                            if (self.also_interesting is not None and
+                                test_env.exitcode == self.also_interesting):
+                                extra_dir = self.get_extra_dir("creduce_extra_", self.MAX_EXTRA_DIRS)
+                                if extra_dir != None:
+                                    os.mkdir(extra_dir)
+                                    shutil.move(test_env.test_case_path, extra_dir)
+                                    logging.info("Created extra directory {} for you to look at later".format(extra_dir))
                         elif test_env.result == PassResult.STOP:
                             quit_loop = True
                         elif test_env.result == PassResult.ERROR:
@@ -327,9 +329,13 @@ class TestManager:
                             if not self.no_give_up and test_env.order > self.GIVEUP_CONSTANT:
                                 self.report_pass_bug(test_env, "pass got stuck")
                                 quit_loop = True
-                        self.release_folder(future, temporary_folders)
                 else:
                     new_futures.append(future)
+
+        new_futures_set = set(new_futures)
+        for future in futures:
+            if not future in new_futures_set:
+                self.release_folder(future, temporary_folders)
 
         return (quit_loop, new_futures)
 
