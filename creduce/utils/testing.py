@@ -280,6 +280,10 @@ class TestManager:
             cls.release_folder(future, temporary_folders)
         assert not any(temporary_folders)
 
+    @classmethod
+    def log_key_event(cls, event):
+        logging.info("****** %s  ******" % event)
+
     def process_done_futures(self, futures, temporary_folders):
         quit_loop = False
         new_futures = []
@@ -428,9 +432,9 @@ class TestManager:
                     key = logger.pressed_key()
                     if key == "s":
                         self.skip = True
-                        logging.info("****** skipping the rest of this pass ******")
+                        self.log_key_event("skipping the rest of this pass")
                     elif key == "d":
-                        logging.info("****** toggle print diff ******")
+                        self.log_key_event("toggle print diff")
                         self.print_diff = not self.print_diff
 
                 success_env, futures, temporary_folders = self.run_parallel_tests()
